@@ -1,0 +1,17 @@
+# сборка и артефакты
+app/build/
+app/dist/
+*.apk
+*.idsig
+
+# ключи и пароли — никогда не публиковать
+app/keys/
+*.jks
+*.keystore
+password.txt
+
+# системный мусор
+Thumbs.db
+desktop.ini
+.DS_Store
+*.log
