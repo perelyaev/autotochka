@@ -1,4 +1,4 @@
-# Собирает APK приложения «Автоточка» без Gradle.
+﻿# Собирает APK приложения «Автоточка» без Gradle.
 #
 #   powershell -ExecutionPolicy Bypass -File .\build-app.ps1 -Tools "C:\android-tools"
 #   powershell -ExecutionPolicy Bypass -File .\build-app.ps1 -Tools "C:\android-tools" -Install
@@ -15,7 +15,9 @@ param(
 $ErrorActionPreference = 'Stop'
 $root = $PSScriptRoot
 $aapt2 = Join-Path $Tools 'aapt2.exe'
-$androidJar = Join-Path $Tools 'android-33.jar'
+$androidJar = Join-Path $Tools 'android-35.jar'
+if (-not (Test-Path $androidJar)) { $androidJar = Join-Path $Tools 'android-33.jar' }
+$targetSdk = if ($androidJar -match 'android-(\d+)') { [int]$matches[1] } else { 33 }
 $d8 = Join-Path $Tools 'lib\d8.jar'
 $apksigner = Join-Path $Tools 'lib\apksigner.jar'
 $zipalign = Join-Path $Tools 'zipalign.exe'
@@ -39,7 +41,7 @@ if ($LASTEXITCODE -ne 0) { throw 'aapt2 compile failed' }
 
 Write-Host '2/7 линковка'
 & $aapt2 link -o (Join-Path $build 'app-unsigned.apk') -I $androidJar `
-    --manifest $manifest --min-sdk-version 26 --target-sdk-version 33 `
+    --manifest $manifest --min-sdk-version 26 --target-sdk-version $targetSdk `
     --version-code $VersionCode --version-name $VersionName `
     --java (Join-Path $build 'gen') (Join-Path $build 'res.zip')
 if ($LASTEXITCODE -ne 0) { throw 'aapt2 link failed' }

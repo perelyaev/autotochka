@@ -39,7 +39,7 @@ Android-приложение, которое само включает точк�
 
 - JDK 11+ (`javac`, `java`)
 - Android build-tools: `aapt2`, `d8.jar`, `apksigner.jar`, `zipalign`
-- `android-33.jar` (платформа Android 13)
+- `android-35.jar` (платформа Android 15) — скрипт подхватит её, если она есть в каталоге инструментов, иначе возьмёт `android-33.jar`
 
 Сборка без Gradle — вызовом четырёх инструментов по очереди:
 
