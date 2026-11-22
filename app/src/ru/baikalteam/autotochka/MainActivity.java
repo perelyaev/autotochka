@@ -4,35 +4,49 @@ import android.Manifest;
 import android.app.Activity;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.graphics.Color;
+import android.graphics.drawable.GradientDrawable;
+import android.graphics.drawable.RippleDrawable;
+import android.graphics.drawable.ColorDrawable;
 import android.net.Uri;
 import android.os.Build;
-import android.provider.Settings;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.provider.Settings;
+import android.text.Editable;
 import android.text.InputType;
+import android.text.TextWatcher;
 import android.view.Gravity;
 import android.view.View;
-import android.widget.Button;
+import android.view.ViewGroup;
+import android.view.Window;
 import android.widget.EditText;
 import android.widget.LinearLayout;
-import android.widget.ScrollView;
+import android.widget.Space;
 import android.widget.TextView;
 
 import java.io.File;
-import java.text.SimpleDateFormat;
-import java.util.Date;
-import java.util.Locale;
 
+/**
+ * Один экран: сверху имя Bluetooth-устройства, по центру большая круглая кнопка.
+ * Стиль — минималистичный, в духе shadcn: тёмный фон, тонкие границы, крупная типографика.
+ */
 public class MainActivity extends Activity {
+
+    private static final int BG = 0xFF09090B;          // фон
+    private static final int BORDER = 0xFF27272A;      // границы
+    private static final int FG = 0xFFFAFAFA;          // основной текст
+    private static final int MUTED = 0xFFA1A1AA;       // вторичный текст
+    private static final int PRIMARY = 0xFFFAFAFA;     // «белая» кнопка
+    private static final int PRIMARY_FG = 0xFF18181B;  // текст на белой кнопке
 
     private final Handler handler = new Handler(Looper.getMainLooper());
     private Prefs prefs;
+    private TextView action;
     private TextView status;
-    private TextView logView;
     private EditText nameEdit;
-    private EditText gapEdit;
-    private EditText offEdit;
+    private boolean armed;   // нажатие уже привело к запросу разрешения
 
     private final Runnable tick = new Runnable() {
         @Override
@@ -51,6 +65,7 @@ public class MainActivity extends Activity {
             Logs.add("имя из интента: " + prefs.btName());
         }
         Logs.init(new File(getFilesDir(), "monitor.log"));
+        paintSystemBars();
         setContentView(buildUi());
         requestPermissions();
     }
@@ -67,171 +82,171 @@ public class MainActivity extends Activity {
         super.onPause();
     }
 
+    private void paintSystemBars() {
+        Window w = getWindow();
+        w.setStatusBarColor(BG);
+        w.setNavigationBarColor(BG);
+        if (Build.VERSION.SDK_INT >= 29) {
+            w.setNavigationBarDividerColor(BG);
+        }
+        if (Build.VERSION.SDK_INT >= 23) {
+            // тёмный фон — значит иконки в статус-баре должны быть светлыми
+            w.getDecorView().setSystemUiVisibility(0);
+        }
+    }
+
     private View buildUi() {
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
-        int pad = dp(16);
-        root.setPadding(pad, pad, pad, pad);
+        root.setBackgroundColor(BG);
+        root.setPadding(dp(24), dp(32), dp(24), dp(32));
 
-        TextView title = new TextView(this);
-        title.setText("Автоточка");
-        title.setTextSize(22);
-        title.setGravity(Gravity.START);
-        root.addView(title);
-
-        status = new TextView(this);
-        status.setTextSize(14);
-        status.setPadding(0, dp(8), 0, dp(8));
-        root.addView(status);
-
-        LinearLayout row1 = new LinearLayout(this);
-        row1.setOrientation(LinearLayout.HORIZONTAL);
-        Button start = new Button(this);
-        start.setText("Старт");
-        start.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                prefs.setEnabled(true);
-                Intent i = new Intent(MainActivity.this, MonitorService.class);
-                i.setAction(MonitorService.ACTION_START);
-                startForegroundService(i);
-                Logs.add("запуск из интерфейса");
-            }
-        });
-        Button stop = new Button(this);
-        stop.setText("Стоп");
-        stop.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                prefs.setEnabled(false);
-                stopService(new Intent(MainActivity.this, MonitorService.class));
-            }
-        });
-        row1.addView(start, weight());
-        row1.addView(stop, weight());
-        root.addView(row1);
-
-        LinearLayout row2 = new LinearLayout(this);
-        row2.setOrientation(LinearLayout.HORIZONTAL);
-        Button testOn = new Button(this);
-        testOn.setText("Точка вкл");
-        testOn.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                Intent i = new Intent(MainActivity.this, MonitorService.class);
-                i.setAction(MonitorService.ACTION_TEST_ON);
-                startForegroundService(i);
-            }
-        });
-        Button testOff = new Button(this);
-        testOff.setText("Точка выкл");
-        testOff.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                Intent i = new Intent(MainActivity.this, MonitorService.class);
-                i.setAction(MonitorService.ACTION_TEST_OFF);
-                startForegroundService(i);
-            }
-        });
-        row2.addView(testOn, weight());
-        row2.addView(testOff, weight());
-        root.addView(row2);
-
-        Button writeSettings = new Button(this);
-        writeSettings.setText("Разрешить изменение настроек");
-        writeSettings.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                try {
-                    startActivity(new Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS,
-                            Uri.parse("package:" + getPackageName())));
-                } catch (Throwable t) {
-                    Logs.add("не открылась страница WRITE_SETTINGS: " + t);
-                }
-            }
-        });
-        root.addView(writeSettings);
-
-        TextView settingsTitle = new TextView(this);
-        settingsTitle.setText("Настройки");
-        settingsTitle.setPadding(0, dp(12), 0, 0);
-        root.addView(settingsTitle);
+        TextView label = new TextView(this);
+        label.setText("Устройство Bluetooth");
+        label.setTextSize(13);
+        label.setTextColor(MUTED);
+        label.setPadding(dp(4), 0, 0, dp(8));
+        root.addView(label);
 
         nameEdit = new EditText(this);
-        nameEdit.setHint("Имя Bluetooth машины");
+        nameEdit.setHint("Например, GEELY_BT");
         nameEdit.setText(prefs.btName());
-        nameEdit.setInputType(InputType.TYPE_CLASS_TEXT);
-        root.addView(nameEdit);
+        nameEdit.setHintTextColor(0xFF71717A);
+        nameEdit.setTextColor(FG);
+        nameEdit.setTextSize(16);
+        nameEdit.setSingleLine(true);
+        nameEdit.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
+        nameEdit.setPadding(dp(16), 0, dp(16), 0);
+        nameEdit.setBackground(fieldBackground());
+        LinearLayout.LayoutParams fieldLp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(52));
+        root.addView(nameEdit, fieldLp);
 
-        gapEdit = new EditText(this);
-        gapEdit.setHint("Пауза между поисками, сек");
-        gapEdit.setText(String.valueOf(prefs.scanGapSec()));
-        gapEdit.setInputType(InputType.TYPE_CLASS_NUMBER);
-        root.addView(gapEdit);
-
-        offEdit = new EditText(this);
-        offEdit.setHint("Выключать, если не видно N минут (0 — не выключать)");
-        offEdit.setText(String.valueOf(prefs.offAfterMin()));
-        offEdit.setInputType(InputType.TYPE_CLASS_NUMBER);
-        root.addView(offEdit);
-
-        Button save = new Button(this);
-        save.setText("Сохранить");
-        save.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                prefs.setBtName(nameEdit.getText().toString().trim());
-                prefs.setScanGapSec(parseInt(gapEdit.getText().toString(), 15));
-                prefs.setOffAfterMin(parseInt(offEdit.getText().toString(), 10));
-                Logs.add("настройки сохранены: имя=" + prefs.btName()
-                        + ", пауза=" + prefs.scanGapSec() + "с, выкл. через " + prefs.offAfterMin() + " мин");
+        nameEdit.addTextChangedListener(new TextWatcher() {
+            @Override public void beforeTextChanged(CharSequence s, int a, int b, int c) { }
+            @Override public void onTextChanged(CharSequence s, int a, int b, int c) { }
+            @Override public void afterTextChanged(Editable s) {
+                prefs.setBtName(s.toString().trim());
             }
         });
-        root.addView(save);
 
-        Button clear = new Button(this);
-        clear.setText("Очистить журнал");
-        clear.setOnClickListener(new View.OnClickListener() {
+        Space top = new Space(this);
+        root.addView(top, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
+
+        LinearLayout center = new LinearLayout(this);
+        center.setOrientation(LinearLayout.HORIZONTAL);
+        center.setGravity(Gravity.CENTER);
+        action = new TextView(this);
+        action.setText("Включить");
+        action.setTextSize(24);
+        action.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
+        action.setGravity(Gravity.CENTER);
+        action.setClickable(true);
+        action.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                Logs.clear();
-                logView.setText("");
+                onPrimaryTap();
             }
         });
-        root.addView(clear);
+        center.addView(action, new LinearLayout.LayoutParams(dp(220), dp(220)));
+        root.addView(center);
 
-        logView = new TextView(this);
-        logView.setTextSize(11);
-        logView.setPadding(0, dp(8), 0, 0);
-        ScrollView scroll = new ScrollView(this);
-        scroll.addView(logView);
-        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f);
-        root.addView(scroll, lp);
+        status = new TextView(this);
+        status.setTextSize(13);
+        status.setTextColor(MUTED);
+        status.setGravity(Gravity.CENTER);
+        status.setPadding(0, dp(20), 0, 0);
+        root.addView(status);
+
+        Space bottom = new Space(this);
+        root.addView(bottom, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
 
         return root;
     }
 
+    /** Поле ввода в стиле shadcn: скруглённый прямоугольник с тонкой границей. */
+    private GradientDrawable fieldBackground() {
+        GradientDrawable d = new GradientDrawable();
+        d.setShape(GradientDrawable.RECTANGLE);
+        d.setCornerRadius(dp(10));
+        d.setColor(BG);
+        d.setStroke(dp(1), BORDER);
+        return d;
+    }
+
+    /** Нажатие главной кнопки: включить, выключить или попросить разрешение. */
+    private void onPrimaryTap() {
+        if (!prefs.enabled() && !Settings.System.canWrite(this)) {
+            // без «Изменения системных настроек» точка доступа не поднимется
+            armed = true;
+            try {
+                startActivity(new Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS,
+                        Uri.parse("package:" + getPackageName())));
+            } catch (Throwable t) {
+                Logs.add("не открылась страница WRITE_SETTINGS: " + t);
+            }
+            refresh();
+            return;
+        }
+
+        if (prefs.enabled()) {
+            prefs.setEnabled(false);
+            stopService(new Intent(this, MonitorService.class));
+            Logs.add("остановлено с экрана");
+        } else {
+            String name = nameEdit.getText().toString().trim();
+            if (name.isEmpty()) {
+                status.setText("Укажите имя Bluetooth-устройства");
+                return;
+            }
+            prefs.setBtName(name);
+            prefs.setEnabled(true);
+            Intent i = new Intent(this, MonitorService.class);
+            i.setAction(MonitorService.ACTION_START);
+            startForegroundService(i);
+            Logs.add("запущено с экрана, устройство: " + name);
+        }
+        refresh();
+    }
+
     private void refresh() {
-        StringBuilder sb = new StringBuilder();
-        sb.append("Сервис: ").append(State.serviceRunning ? "работает" : "остановлен").append('\n');
-        sb.append("Сканирование: ").append(State.scanning ? "идёт" : "ожидание").append('\n');
-        sb.append("Точка доступа: ").append(State.hotspotOn ? "включена" : "выключена").append('\n');
-        sb.append("Изменение системных настроек: ")
-                .append(Settings.System.canWrite(this) ? "разрешено" : "НЕ разрешено").append('\n');
-        if (State.lastSeen > 0) {
-            SimpleDateFormat f = new SimpleDateFormat("HH:mm:ss", Locale.US);
-            sb.append("Последний раз видел: ").append(f.format(new Date(State.lastSeen))).append('\n');
+        boolean on = prefs.enabled();
+        boolean canWrite = Settings.System.canWrite(this);
+
+        action.setText(on ? "Выключить" : "Включить");
+        if (on) {
+            GradientDrawable d = new GradientDrawable();
+            d.setShape(GradientDrawable.OVAL);
+            d.setColor(BG);
+            d.setStroke(dp(2), BORDER);
+            action.setBackground(new RippleDrawable(
+                    android.content.res.ColorStateList.valueOf(0x22FFFFFF), d, null));
+            action.setTextColor(FG);
+        } else {
+            GradientDrawable d = new GradientDrawable();
+            d.setShape(GradientDrawable.OVAL);
+            d.setColor(canWrite ? PRIMARY : 0xFF3F3F46);
+            action.setBackground(new RippleDrawable(
+                    android.content.res.ColorStateList.valueOf(0x22000000), d, null));
+            action.setTextColor(canWrite ? PRIMARY_FG : FG);
         }
-        if (!State.lastDevice.isEmpty()) {
-            sb.append("Устройство: ").append(State.lastDevice).append('\n');
+
+        String hint;
+        if (!canWrite) {
+            hint = armed ? "Разрешите «Изменение системных настроек» и вернитесь" :
+                    "Нужно разрешение «Изменение системных настроек»";
+        } else if (!on) {
+            hint = "Готово к запуску";
+        } else if (!State.serviceRunning) {
+            hint = "Запускается…";
+        } else if (State.hotspotOn) {
+            hint = "Работает · точка доступа включена";
+        } else if (State.scanning) {
+            hint = "Работает · ищет машину";
+        } else {
+            hint = "Работает";
         }
-        sb.append("Поисков: ").append(State.scans).append('\n');
-        if (!State.lastResult.isEmpty()) {
-            sb.append("Результат: ").append(State.lastResult).append('\n');
-        }
-        status.setText(sb.toString());
-        logView.setText(Logs.tail(40));
+        status.setText(hint);
     }
 
     private void requestPermissions() {
@@ -252,19 +267,7 @@ public class MainActivity extends Activity {
         }
     }
 
-    private static int parseInt(String s, int def) {
-        try {
-            return Integer.parseInt(s.trim());
-        } catch (Throwable t) {
-            return def;
-        }
-    }
-
     private int dp(int v) {
         return Math.round(getResources().getDisplayMetrics().density * v);
-    }
-
-    private static LinearLayout.LayoutParams weight() {
-        return new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f);
     }
 }
