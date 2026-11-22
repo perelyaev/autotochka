@@ -22,6 +22,7 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.view.Window;
 import android.widget.EditText;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.Space;
 import android.widget.TextView;
@@ -101,12 +102,16 @@ public class MainActivity extends Activity {
         root.setBackgroundColor(BG);
         root.setPadding(dp(24), dp(32), dp(24), dp(32));
 
-        TextView label = new TextView(this);
-        label.setText("Устройство Bluetooth");
-        label.setTextSize(13);
-        label.setTextColor(MUTED);
-        label.setPadding(dp(4), 0, 0, dp(8));
-        root.addView(label);
+        // поле ввода: иконка Bluetooth слева внутри рамки
+        LinearLayout field = new LinearLayout(this);
+        field.setOrientation(LinearLayout.HORIZONTAL);
+        field.setGravity(Gravity.CENTER_VERTICAL);
+        field.setBackground(fieldBackground());
+        field.setPadding(dp(16), 0, dp(16), 0);
+
+        ImageView btIcon = new ImageView(this);
+        btIcon.setImageResource(R.drawable.ic_bluetooth);
+        field.addView(btIcon, new LinearLayout.LayoutParams(dp(22), dp(22)));
 
         nameEdit = new EditText(this);
         nameEdit.setHint("Например, GEELY_BT");
@@ -116,11 +121,15 @@ public class MainActivity extends Activity {
         nameEdit.setTextSize(16);
         nameEdit.setSingleLine(true);
         nameEdit.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
-        nameEdit.setPadding(dp(16), 0, dp(16), 0);
-        nameEdit.setBackground(fieldBackground());
+        nameEdit.setBackground(null);
+        nameEdit.setPadding(dp(12), 0, 0, 0);
+        LinearLayout.LayoutParams editLp = new LinearLayout.LayoutParams(0,
+                ViewGroup.LayoutParams.MATCH_PARENT, 1f);
+        field.addView(nameEdit, editLp);
+
         LinearLayout.LayoutParams fieldLp = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, dp(52));
-        root.addView(nameEdit, fieldLp);
+        root.addView(field, fieldLp);
 
         nameEdit.addTextChangedListener(new TextWatcher() {
             @Override public void beforeTextChanged(CharSequence s, int a, int b, int c) { }
