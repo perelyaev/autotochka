@@ -48,6 +48,7 @@ public class MainActivity extends Activity {
     private TextView status;
     private EditText nameEdit;
     private boolean armed;   // нажатие уже привело к запросу разрешения
+    private long startRequested;   // когда просили службу стартовать
 
     private final Runnable tick = new Runnable() {
         @Override
@@ -74,6 +75,13 @@ public class MainActivity extends Activity {
     @Override
     protected void onResume() {
         super.onResume();
+        // если приложение включено, а служба не поднялась (например, после обновления) — поднимаем
+        if (prefs != null && prefs.enabled() && !State.serviceRunning) {
+            startRequested = System.currentTimeMillis();
+            Intent i = new Intent(this, MonitorService.class);
+            i.setAction(MonitorService.ACTION_START);
+            startForegroundService(i);
+        }
         handler.post(tick);
     }
 
@@ -218,6 +226,7 @@ public class MainActivity extends Activity {
             }
             prefs.setBtName(name);
             prefs.setEnabled(true);
+            startRequested = System.currentTimeMillis();
             Intent i = new Intent(this, MonitorService.class);
             i.setAction(MonitorService.ACTION_START);
             startForegroundService(i);
@@ -227,6 +236,10 @@ public class MainActivity extends Activity {
     }
 
     private void refresh() {
+        // состояние точки доступа берём из системы, а не из закешированного флага:
+        // пользователь мог выключить её вручную, и приложение не должно врать
+        State.hotspotOn = Hotspot.isOn(this);
+
         boolean on = prefs.enabled();
         boolean canWrite = Settings.System.canWrite(this);
 
@@ -255,7 +268,10 @@ public class MainActivity extends Activity {
         } else if (!on) {
             hint = "Готово к запуску";
         } else if (!State.serviceRunning) {
-            hint = "Запускается…";
+            long waited = System.currentTimeMillis() - startRequested;
+            hint = (startRequested > 0 && waited > 5000)
+                    ? "Служба не запущена — нажмите «Включить»"
+                    : "Запускается…";
         } else if (State.hotspotOn) {
             hint = "Работает · точка доступа включена";
         } else if (State.scanning) {

@@ -53,6 +53,8 @@ public class MonitorService extends Service {
     private final Runnable watchdog = new Runnable() {
         @Override
         public void run() {
+            // сверяемся с реальным состоянием: точку могли выключить вручную
+            State.hotspotOn = Hotspot.isOn(MonitorService.this);
             checkProfiles();
             checkConnectedDevices();
             checkHotspotTimeout();

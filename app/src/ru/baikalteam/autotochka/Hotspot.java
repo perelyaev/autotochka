@@ -139,12 +139,18 @@ public final class Hotspot {
     }
 
     public static boolean isOn(Context ctx) {
+        // 1. Надёжнее всего — есть ли поднятый интерфейс точки доступа (ap0 и подобные).
+        //    Работает на любой прошивке и не зависит от скрытых API.
+        if (apInterfaceUp()) {
+            return true;
+        }
+        // 2. Скрытый getWifiApState, если прошивка его отдаёт.
+        //    ВАЖНО: 12 = ENABLED, 13 = DISABLING (а не «включено», как считалось раньше).
         try {
             Object wm = ctx.getSystemService(Context.WIFI_SERVICE);
             Method m = wm.getClass().getMethod("getWifiApState");
             int state = (Integer) m.invoke(wm);
-            // 13 = WIFI_AP_STATE_ENABLED
-            return state == 13;
+            return state == 12;
         } catch (Throwable t) {
             Log.w(TAG, "getWifiApState failed: " + t);
         }
@@ -162,6 +168,28 @@ public final class Hotspot {
             }
         } catch (Throwable t) {
             Log.w(TAG, "getTetheredIfaces failed: " + t);
+        }
+        return false;
+    }
+
+    /** Поднят ли сетевой интерфейс точки доступа (ap0, softap0, wlan1). */
+    private static boolean apInterfaceUp() {
+        try {
+            java.util.Enumeration<java.net.NetworkInterface> e =
+                    java.net.NetworkInterface.getNetworkInterfaces();
+            while (e != null && e.hasMoreElements()) {
+                java.net.NetworkInterface ni = e.nextElement();
+                String n = ni.getName();
+                if (n == null) {
+                    continue;
+                }
+                boolean looksLikeAp = n.startsWith("ap") || n.startsWith("softap") || n.equals("wlan1");
+                if (looksLikeAp && ni.isUp()) {
+                    return true;
+                }
+            }
+        } catch (Throwable t) {
+            Log.w(TAG, "apInterfaceUp failed: " + t);
         }
         return false;
     }
